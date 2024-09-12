@@ -1,0 +1,61 @@
+python -m venv dataminer-env
+source dataminer-env/bin/activate  # On Windows, use dataminer-env\Scripts\activate
+pip install requests beautifulsoup4 pandas sqlalchemy
+import requests
+
+def fetch_page(url):
+    response = requests.get(url)
+    response.raise_for_status()  # Check for HTTP request errors
+    return response.text
+from bs4 import BeautifulSoup
+
+def parse_page(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    data = []
+    
+    # Example: Extracting all titles from <h2> tags
+    for h2 in soup.find_all('h2'):
+        data.append(h2.get_text())
+    
+    return data
+import pandas as pd
+
+def save_to_csv(data, filename):
+    df = pd.DataFrame(data, columns=['Title'])
+    df.to_csv(filename, index=False)
+from sqlalchemy import create_engine, Table, Column, String, MetaData
+
+def save_to_database(data, db_url='sqlite:///dataminer.db'):
+    engine = create_engine(db_url)
+    metadata = MetaData()
+
+    # Define the table structure
+    data_table = Table('data', metadata,
+        Column('id', String, primary_key=True),
+        Column('title', String)
+    )
+
+    metadata.create_all(engine)
+
+    # Insert data
+    with engine.connect() as connection:
+        for i, title in enumerate(data):
+            connection.execute(data_table.insert(), {'id': i, 'title': title})
+def main(url, csv_filename, db_url):
+    # Fetch the page
+    html_content = fetch_page(url)
+    
+    # Parse the page
+    data = parse_page(html_content)
+    
+    # Save data to CSV
+    save_to_csv(data, csv_filename)
+    
+    # Save data to Database
+    save_to_database(data, db_url)
+
+if _name_ == '_main_':
+    url = 'https://example.com'  # Replace with your target URL
+    csv_filename = 'data.csv'
+    db_url = 'sqlite:///dataminer.db'  # SQLite database URL
+    main(url, csv_filename, db_url)
